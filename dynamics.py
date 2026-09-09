@@ -12,10 +12,12 @@ m = 0.1     # pole mass                      [kg]
 l = 0.5     # pivot -> pole centre of mass   [m]
 g = 9.81    # gravitational acceleration     [m/s^2]
 b = 0.0     # cart viscous damping           [N/(m/s)]
+            # for simplicity reasons b = 0 for now
 
 I_S = m * l**2 / 3.0        # uniform slender rod, expressed in terms of l
 
 
+# for simplicity reasons dF = 0 for now
 def f(state, u, dF=0.0):
     """Return d(state)/dt for state = [p, p_dot, theta, theta_dot]."""
     p, p_dot, th, th_dot = state
