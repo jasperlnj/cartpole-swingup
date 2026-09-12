@@ -1,4 +1,6 @@
 from matplotlib.patches import Rectangle
+from matplotlib.patches import Patch
+from matplotlib.colors import ListedColormap
 from matplotlib.animation import FuncAnimation
 from dynamics import M, m, l, g, b, I_S, f
 from integrate import rk4_step, rollout
@@ -136,3 +138,82 @@ if __name__ == "__main__":
 
     fig.tight_layout()
     fig.savefig("docs/lqr_states.png", dpi=150)
+
+
+    #----------------plot the region of attraction----------------#
+    CAUGHT_COLOR, FELL_COLOR = "#1B4D3E", "#ece7e1"
+
+
+    def scan_roa(controller, theta0_grid, thetadot0_grid, n=800, cache=None):
+        """Grid-scan initial (θ, θ̇). True where the controller recovers the pole."""
+        if cache and os.path.exists(cache):
+            print(f"loaded cached scan: {cache}")
+            return np.load(cache)
+
+        caught = np.zeros((len(thetadot0_grid), len(theta0_grid)), dtype=bool)
+        for j, thd in enumerate(thetadot0_grid):
+            for i, th in enumerate(theta0_grid):
+                tr = rollout(f, rk4_step, np.array([0.0, 0.0, th, thd]), controller, dt, n)
+                caught[j, i] = (np.isfinite(tr[-1]).all()
+                                and abs(tr[-1, 2]) < 0.02      # ended upright
+                                and abs(tr[-1, 3]) < 0.05)     # and stopped there
+            print(f"\r  row {j+1}/{len(thetadot0_grid)}", end="", flush=True)
+        print()
+
+        if cache:
+            np.save(cache, caught)
+        return caught
+
+
+    def boundary_angle(caught, theta0_grid, thetadot0_grid):
+        """Largest initial angle recovered from rest (θ̇₀ = 0), in radians."""
+        row = caught[np.argmin(np.abs(thetadot0_grid))]
+        pos = theta0_grid[row & (theta0_grid > 0)]
+        return pos.max() if pos.size else 0.0
+
+
+    def plot_roa(caught, theta0_grid, thetadot0_grid, title, path):
+        """Binary region-of-attraction map in the θ–θ̇ plane."""
+        th_b = boundary_angle(caught, theta0_grid, thetadot0_grid)
+
+        fig, ax = plt.subplots(figsize=(6.5, 5))
+        ax.pcolormesh(theta0_grid, thetadot0_grid, caught,
+                    cmap=ListedColormap([FELL_COLOR, CAUGHT_COLOR]), shading="nearest")
+        ax.axhline(0, color="0.45", lw=0.8)
+        ax.axvline(0, color="0.45", lw=0.8)
+
+        if th_b > 0:
+            ax.plot(th_b, 0, "o", color="#161616", ms=5, zorder=3)
+            ax.annotate(f"{np.degrees(th_b):.0f}°", (th_b, 0), xytext=(7, 7),
+                        textcoords="offset points", color="#161616", fontsize=10)
+
+        ax.set_xlabel("initial angle  θ₀  [rad]")
+        ax.set_ylabel("initial angular velocity  θ̇₀  [rad/s]")
+        ax.set_title(title)
+        ax.legend(handles=[Patch(facecolor=CAUGHT_COLOR, label="recovered"),
+                        Patch(facecolor=FELL_COLOR,  label="fell")],
+                loc="upper right", framealpha=0.95, fontsize=9)
+
+        fig.tight_layout()
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        print(f"wrote {path}")
+
+    os.makedirs("docs", exist_ok=True)
+        
+    theta0_grid    = np.linspace(-1.2, 1.2, 41)     # rad
+    thetadot0_grid = np.linspace(-4.0, 4.0, 41)     # rad/s
+
+    print("scanning saturated…")
+    roa_sat  = scan_roa(lqr_sat,  theta0_grid, thetadot0_grid, cache="docs/roa_sat.npy")
+    print("scanning unsaturated…")
+    roa_free = scan_roa(lqr_free, theta0_grid, thetadot0_grid, cache="docs/roa_free.npy")
+
+    plot_roa(roa_sat,  theta0_grid, thetadot0_grid,
+             f"Region of attraction — LQR,  |u| ≤ {u_max:.0f} N", "docs/roa_saturated.png")
+    plot_roa(roa_free, theta0_grid, thetadot0_grid,
+             "Region of attraction — LQR,  unlimited force", "docs/roa_free.png")
+
+    print(f"boundary from rest —  saturated: "
+          f"{np.degrees(boundary_angle(roa_sat,  theta0_grid, thetadot0_grid)):.1f}°   "
+          f"unlimited: {np.degrees(boundary_angle(roa_free, theta0_grid, thetadot0_grid)):.1f}°")
