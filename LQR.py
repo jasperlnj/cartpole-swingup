@@ -50,6 +50,8 @@ B = B_analytic.reshape(4, 1)
 P = la.solve_continuous_are(A, B, Q, R)
 # K = la.inv(R) @ B_analytic.reshape(4, 1).T @ P 
 K = np.linalg.solve(R, B.T @ P) # shape is (1, 4), [[-20.0, -22.55, 129.38, 31.46]]
+k = K[0] # convert to row
+
 
 def make_controller(k, u_max=None):
     """Build a state-feedback controller u = -k·s, optionally force-limited."""
@@ -57,6 +59,7 @@ def make_controller(k, u_max=None):
         u = -k @ s
         return u if u_max is None else np.clip(u, -u_max, u_max)
     return u_fn
+
 
 
 #-------------------- EXPERIMENTS --------------------#
@@ -77,7 +80,6 @@ if __name__ == "__main__":
     #^^gives negative eigenvalues, so the system is stable
     print("K =", K.ravel())
 
-    k = K[0] # convert to row
 
     s0 = np.array([0.0, 0.0, 1.0, 0.0])   # 1.0 rad ≈ 57.3° off vertical, at rest
     dt = 0.005
@@ -85,6 +87,7 @@ if __name__ == "__main__":
     fallen = lambda s: np.abs(s[2]) > np.pi/2  # stop if the pole falls too far
     traj = rollout(f, rk4_step, s0, lqr_free, dt, 1200, stop_fn=fallen)    # 6 s
 
+    #-------------------ANIMATION------------------------#
     frames = traj[::6]              
     Cart_W, Cart_H = 0.3, 0.15
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -115,6 +118,8 @@ if __name__ == "__main__":
     anim.save("docs/1.0rad.gif", writer="pillow", fps=30)
     print("Animation saved to docs/1.0rad.gif")
 
+
+    #------------------PLOT-----------------#
     t = np.arange(len(traj)) * dt
     u = np.array([lqr_free(0.0, s) for s in traj])     # recompute what the controller asked for
 
