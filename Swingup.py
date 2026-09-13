@@ -56,17 +56,17 @@ if __name__ == "__main__":
     ax2.axhline(0, color="0.7", lw=0.8)
     ax2.set_xlabel("Zeit [s]"); ax2.legend(fontsize=9)
     fig.tight_layout(); fig.savefig("docs/swingup_energy.png", dpi=150); plt.close(fig)
-    t_switch = 10 # first time when LQR takes over
+    t_switch =  # first time when LQR takes over
     for ax in (ax1, ax2):
         ax.axvline(t_switch, color="#b0452d", lw=1, ls=":")
         ax1.text(t_switch, 0.15, " LQR übernimmt", color="#b0452d", fontsize=9)
 
     # ---------- GIF ----------
-    frames = traj[::10]                            # 0.05 s Abstand -> fps=20 ist Echtzeit
+    frames = traj[::10]                            # 0.05 s Abstand -> fps=20 
     CART_W, CART_H = 0.3, 0.15
 
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.set_xlim(-2.5, 2.5)                         # Wagen läuft bis ~1 m, Spitze bis ~2 m
+    ax.set_xlim(-2.5, 2.5)                         # Wagen läuft bis ca 1 m, Spitze bis ca 2 m
     ax.set_ylim(-1.3, 1.3)
     ax.set_aspect("equal")
     ax.axhline(0, color="0.7", lw=1)
