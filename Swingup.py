@@ -8,26 +8,34 @@ from matplotlib.patches import Rectangle
 from matplotlib.animation import FuncAnimation
 
 
-def swing_up(t, state): # needs two arguments, time and state, to be compatible with rollout
-    x, x_dot, theta, theta_dot = state
-    theta_wrapped = (theta + np.pi) % (2 * np.pi) - np.pi
-    k_energy = 2.0
+def swing_up(k_energy=2.0, slope=4.37, band=1.3, thd_cap=4.0): # to be tuned
+    latched = False  # flag to indicate if the system has latched onto the LQR region
     
-    # check if inside of LQR region of attraction:
+
+    def u_fn(t,state):
+        nonlocal latched
+        x, x_dot, theta, theta_dot = state
+        theta_wrapped = (theta + np.pi) % (2 * np.pi) - np.pi
+        
+        # check if inside of LQR region of attraction:
+        in_LQR = np.abs(slope*theta_wrapped + theta_dot) < band and np.abs(theta_dot) < thd_cap # linear region of attraction with upper cap, to prevent imprecisions
+        latched = latched or in_LQR
+
+        if latched:
+            # Hand off to linear LQR
+            x_linear = np.array([x, x_dot, theta_wrapped, theta_dot])
+            
+            return float(np.clip(-k @ x_linear, -u_max, u_max))
+
+        # Swing up:
+        E =  0.5 * (I_S + m * l**2) * (theta_dot**2) + m * g * l * (np.cos(theta_wrapped) + 1)    # E = E_kin + E_pot
+        E_upright = 2 * m * g * l 
+        E_err = E - E_upright
+
+        u = -k_energy * E_err * theta_dot * np.cos(theta)
+        return float(np.clip(u, -u_max, u_max))
     
-    if np.abs(4.37*theta_wrapped + theta_dot) < 1.3 and np.abs(theta_dot) < 4: # linear region of attraction with upper cap, to prevent imprecisions 
-        # Hand off to linear LQR
-        x_linear = np.array([x, x_dot, theta_wrapped, theta_dot])
-        return float(np.clip(-k @ x_linear, -u_max, u_max)) 
-
-    # Swing up:
-    # E = E_kin + E_pot
-    E = 0.5 * (I_S + m * l**2) * (theta_dot**2) + m * g * l * (np.cos(theta_wrapped) + 1)
-    E_upright = 2 * m * g * l
-    E_err = E - E_upright
-
-    u = -k_energy * E_err * theta_dot * np.cos(theta)
-    return float(np.clip(u, -u_max, u_max))
+    return u_fn
 
 
 if __name__ == "__main__":
@@ -36,7 +44,8 @@ if __name__ == "__main__":
     dt   = 0.005
     n    = 3000                                    # 15 s
     s0   = np.array([0.0, 0.0, np.pi - 0.05, 0.0]) # hängend, angestupst
-    traj = rollout(f, rk4_step, s0, swing_up, dt, n)
+    
+    traj = rollout(f, rk4_step, s0, swing_up(), dt, n)
     t    = np.arange(len(traj)) * dt
 
     wrap = lambda th: (th + np.pi) % (2*np.pi) - np.pi
@@ -44,7 +53,23 @@ if __name__ == "__main__":
     E_UP = 2*m*g*l
     E_t  = 0.5*J*traj[:,3]**2 + m*g*l*(np.cos(traj[:,2]) + 1)
 
-    # ---------- Energieplot ----------
+    
+    # --------------------- Swingup Analysis ----------------- #
+    ctrl = swing_up()                       # FRISCHE Instanz - der Latch muss neu scharf sein
+    u    = np.array([ctrl(i*dt, s) for i, s in enumerate(traj)])[:-1]
+    thw  = wrap(traj[:, 2])
+
+    print("peak |u| =", np.abs(u).max(), "N")
+    print("max |p|  =", np.abs(traj[:,0]).max(), "m")
+    
+
+    up = np.where(np.abs(thw) < 0.02)[0]
+    if up.size:
+        print("aufrecht (|theta| < 0.02) ab t = %.3f s" % (up[0] * dt))
+    else:
+        print("nie aufrecht innerhalb des Laufs")
+
+    # -------------- Energyplot -------------- #
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
     ax1.plot(t, E_t, color="#1B4D3E", label="Pendelenergie")
     ax1.axhline(E_UP, ls="--", color="0.4", label=f"E_up = {E_UP:.3f} J (Separatrix)")
@@ -56,12 +81,9 @@ if __name__ == "__main__":
     ax2.axhline(0, color="0.7", lw=0.8)
     ax2.set_xlabel("Zeit [s]"); ax2.legend(fontsize=9)
     fig.tight_layout(); fig.savefig("docs/swingup_energy.png", dpi=150); plt.close(fig)
-    t_switch =  # first time when LQR takes over
-    for ax in (ax1, ax2):
-        ax.axvline(t_switch, color="#b0452d", lw=1, ls=":")
-        ax1.text(t_switch, 0.15, " LQR übernimmt", color="#b0452d", fontsize=9)
+    
 
-    # ---------- GIF ----------
+    # -------------- GIF ------------- #
     frames = traj[::10]                            # 0.05 s Abstand -> fps=20 
     CART_W, CART_H = 0.3, 0.15
 
