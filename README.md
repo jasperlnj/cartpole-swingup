@@ -9,11 +9,11 @@ In this project I built a cart-pole, based on a pole, jointed to a cart that has
 
 | Quantity | Value | What it means |
 |---|---|---|
-| Open-loop eigenvalues | `0, 0, +3.974, −3.974` | Unstable, the tilt doubles every **0.174 s**. The two zeros are the cart drifting. |
-| Closed-loop eigenvalues | `−15.24, −5.97, −1.41 ± 1.08j` | All in the left half-plane. Settling **2.84 s**, damping ratio **ζ = 0.79**. |
-| LQR gain | `K = [−20.00, −22.55, 129.38, 31.46]` | From Bryson's rule and the Riccati equation, not tuned by hand. |
+| Open-loop eigenvalues | 0, 0, +3.974, −3.974 | Unstable, the tilt doubles every **0.174 s**. The two zeros are the cart drifting. |
+| Closed-loop eigenvalues | −15.24, −5.97, −1.41 ± 1.08j | All in the left half-plane. Settling **2.84 s**, damping ratio **ζ = 0.79**. |
+| LQR gain | K = [−20.00, −22.55, 129.38, 31.46] | From Bryson's rule and the Riccati equation, not tuned by hand. |
 | Hand-derived vs. numerical Jacobian | max \|ΔA\| = **4·10⁻¹²**, max \|ΔB\| = **2·10⁻¹⁶** | Two independent routes to the same 16 numbers. |
-| RK4 vs. explicit Euler, 30 s | **≈ 11 million ×** more accurate at equal step size | Euler more than *doubles* the system's total energy. |
+| RK4 vs. explicit Euler, 30 s | **≈ 11 million ×** more accurate at equal step size | Euler more than doubles the system's total energy. |
 | Region of attraction, \|u\| ≤ 10 N | **27.5°** | The realistic limit. |
 | Region of attraction, unlimited force | **55°** | Demands **129 N** and **2.6 m** of track. The unrealistic limit. |
 | Swing-up, time to upright | **8.63s** | Mostly pumping energy over several swings. |
@@ -24,7 +24,7 @@ In this project I built a cart-pole, based on a pole, jointed to a cart that has
 
 ## 1. Deriving the equations
 
-I derived the equations of motion by hand from the following free-body diagrams of the cart and the pole, using Newton–Euler (linear momentum balance at the centre of mass, plus angular momentum balance about that same point). Note that the figure writes the cart coordinate as x and the applied force as F, the code and the equations use p and u. The disruptive Force dF is ignored as of now in this project. Throughout, θ is measured from the upright position, so the important equilibrium sits at the origin of the state space, and `l` is the distance from the pivot to the pole's centre of mass which is half the rod length.
+I derived the equations of motion by hand from the following free-body diagrams of the cart and the pole, using Newton–Euler (linear momentum balance at the centre of mass, plus angular momentum balance about that same point). Note that the figure writes the cart coordinate as x and the applied force as F, the code and the equations use p and u. The disruptive Force dF is ignored as of now in this project. Throughout, θ is measured from the upright position, so the important equilibrium sits at the origin of the state space, and l is the distance from the pivot to the pole's centre of mass which is half the rod length.
 
 ![Cart-pole coordinates and free-body diagrams of the pole and the cart](docs/free_body_diagram.png)
 
@@ -54,11 +54,21 @@ Further on, I was able to compare Euler's method to the Runge-Kutta 4 step (RK4)
 To use a linear quadratic regulator (LQR) I first had to linearize the system around the upright equilibrium. In practice this means $\sin\theta \to \theta$, $\cos\theta \to 1$, and $\dot\theta^2\sin\theta \to 0$. What remains is $\dot x = Ax + Bu$ with the state $x = [p, \dot p, \theta, \dot\theta]^T$:
 
 $$
-A = \begin{bmatrix} 0&1&0&0 \\\\ 0&0&0.7178&0 \\\\ 0&0&0&1 \\\\ 0&0&15.7917&0 \end{bmatrix}
-\qquad
-B = \begin{bmatrix} 0 \\\\ 0.9756 \\\\ 0 \\\\ 1.4634 \end{bmatrix}
+A = \begin{bmatrix}
+0 & 1 & 0 & 0 \\
+0 & 0 & 0.7178 & 0 \\
+0 & 0 & 0 & 1 \\
+0 & 0 & 15.7917 & 0
+\end{bmatrix}, \qquad
+B = \begin{bmatrix}
+0 \\
+0.9756 \\
+0 \\
+1.4634
+\end{bmatrix}
 $$
-I first derived the state matrix A and the input matrix B by hand and then checked them against their numerical Jacobian counterpart, which I calculated independently using finite differences in 'LQR.py'. They agree to `max |ΔA| = 4·10⁻¹²` and `max |ΔB| = 2·10⁻¹⁶`. The finite-difference version never looks inside `f` so agreement means the derivation and the simulator are both right, rather than wrong in the same way.
+
+I first derived the state matrix A and the input matrix B by hand and then checked them against their numerical Jacobian counterpart, which I calculated independently using finite differences in 'LQR.py'. They agree to max |ΔA| = 4·10⁻¹² and max |ΔB| = 2·10⁻¹⁶. The finite-difference version never looks inside f so agreement means the derivation and the simulator are both right, rather than wrong in the same way.
 
 The open-loop eigenvalues are `{0, 0, +3.974, −3.974}`. The positive one is the problem. Deviations grow proportional to $e^{3.974t}$, so the tilt doubles every 0.174 s, and any controller has to be faster than that. The two zeros are the cart. Since nothing restores its position, it drifts.
 
@@ -100,17 +110,16 @@ To get the pole to land in that region when it wasn't initially there, I used th
 
 Differentiating that energy and substituting the pole equation leaves a single relation (full derivation in the PDF):
 
-$$\dot E = m\*l\*\ddot p\*\dot\theta\cos\theta$$
+$$\dot E = m\*l\ddot p\\dot\theta\cos\theta$$
 
 Since `m·l·θ̇·cos θ` is known at any time, `dE/dt` is linear in `p̈` — which means I can influence the energy of the pendulum using the cart's acceleration. What I want is for `dẼ/dt` to have the opposite sign to `Ẽ`, and choosing
-$$\ddot p = -k *\tilde  E * \dot\theta\cos\theta$$
-guarantees exactly that, because it makes the rate proportional to `−Ẽ(θ̇cos θ)²` and a square is never negative. 
+$$\dot{E} = m l \, \ddot{p} \, \dot{\theta} \cos\theta$$ guarantees exactly that, because it makes the rate proportional to `−Ẽ(θ̇cos θ)²` and a square is never negative. 
 
 <!--
 Taking `V = ½Ẽ²` as a Lyapunov function gives `V̇ ≤ 0`, so the energy error can only shrink. This produces the control law
 -->
 
-$$u = -k\*\tilde *\dot\theta\cos\theta$$
+$$u = -k \tilde{E} \dot{\theta} \cos\theta$$
 
 applied directly as a force rather than converted from an acceleration, which works because the pole is light relative to the cart (`m/M = 0.1`) and `k_energy` absorbs the scaling.
 
