@@ -1,4 +1,4 @@
-"""Fixed-step integrators. Euler is kept for the Day 2 comparison."""
+"""Fixed-step integrators."""
 import numpy as np
 
 

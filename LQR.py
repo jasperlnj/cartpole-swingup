@@ -79,6 +79,8 @@ if __name__ == "__main__":
     print("closed-loop eig =", np.linalg.eigvals(A - B @ K))
     #^^gives negative eigenvalues, so the system is stable
     print("K =", K.ravel())
+    print("peak |u| =", np.abs(u).max(), "N")
+    print("max |p|  =", np.abs(traj[:,0]).max(), "m")
 
 
     s0 = np.array([0.0, 0.0, 1.0, 0.0])   # 1.0 rad ≈ 57.3° off vertical, at rest
