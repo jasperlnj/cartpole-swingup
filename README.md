@@ -31,10 +31,19 @@ I derived the equations of motion by hand from the following free-body diagrams 
 Eliminating the pivot reactions $H$ and $V$ between the five scalar equations leaves two coupled equations of motion, which sort into a mass matrix acting on the two accelerations:
 
 $$
-\begin{bmatrix} M+m & -ml\cos\theta \\ -ml\cos\theta & I_S+ml^2 \end{bmatrix}
-\begin{bmatrix} \ddot p \\ \ddot\theta \end{bmatrix}
+\begin{bmatrix}
+M+m & -ml\cos\theta \\
+-ml\cos\theta & I_S+ml^2
+\end{bmatrix}
+\begin{bmatrix}
+\ddot{p} \\
+\ddot{\theta}
+\end{bmatrix}
 =
-\begin{bmatrix} u - b\dot p - ml\dot\theta^2\sin\theta \\ mgl\sin\theta \end{bmatrix}
+\begin{bmatrix}
+u - b\dot{p} - ml\dot{\theta}^2\sin\theta \\
+mgl\sin\theta
+\end{bmatrix}
 $$
 
 $I_S + ml^2$ shows up on its own as the moment of inertia about the pivot (Steiner's theorem), and the mass matrix turns out symmetric, matching the quadratic form of the kinetic energy. This gives us two sanity checks, suggesting our math so far was correct. 
@@ -73,7 +82,7 @@ I first derived the state matrix A and the input matrix B by hand and then check
 The open-loop eigenvalues are `{0, 0, +3.974, −3.974}`. The positive one is the problem. Deviations grow proportional to $e^{3.974t}$, so the tilt doubles every 0.174 s, and any controller has to be faster than that. The two zeros are the cart. Since nothing restores its position, it drifts.
 
 
-## 4: LQR
+## 4. LQR
 
 The LQR minimises a quadratic cost, $J = \int_0^\infty (x^TQx + u^TRu)\,dt$. 
 I derived the state weight matrix Q and the effort weight R by using Bryson's Rule (weighing each term by the reciprocal square of the largest deviation I am willing to tolerate in it). I then calculated the cost-to-go matrix by using scipy.linalg solve the continuous algebraic Riccati equation (CARE) for me. For the Bryson tolerances I used the following values: $p = 0.5m, P_dot = 2.0m/s, theta = 0.17, theta_dot = 1.0$. Finally, the gain Matrix follows as $K = R^{-1}B^TP = [[-20.0, -22.55, 129.38, 31.46]]$, which I used as a controller for the real nonlinear system. 
@@ -85,7 +94,7 @@ Substituting $u = -Kx$ turns the dynamics into $\dot x = (A - BK)x$, so designin
 
 
 
-## 5: Where LQR stops working
+## 5. Where LQR stops working
 
 When I started implementing the LQR, I initially ignored the physical force limitations of the electric motor, which resulted in a surprisingly wide region of attraction where the system stabilized at angles up to 55°. However, I soon realized that this relied on an unrealistically high force output of F = 129 N as well as a large amount of track for the cart to roll on. To obtain more realistic results, I limited the motor's maximum force to 10 N, yielding a much smaller, but physically accurate, region of attraction.
 
@@ -101,7 +110,7 @@ But even at angles up to 27.5° (with no initial angular speed), the saturated L
 
 
 
-## 6: Swing up
+## 6. Swing up
 To solve the issue of the LQR only latching at a limited range of angles, I had to distinguish between the states in which I was able to use the LQR and the ones where I had to swing the pole upwards. I started off just testing whether the angle and angular velocity of the current state were within a small part of the ROA. I used the rectangle set by `−0.25 ≤ θ ≤ 0.25` rad and `−1 ≤ θ̇ ≤ 1` rad/s, to be exact. However, even though this hardly left any margin of error, it was still a small area, which meant a lot of points that the LQR was able to solve were ignored. I considered using the cost to go xTPx, which sees all four states and is invariant, but ended up using a fitted strip instead, which is tighter on the slice I measured and works sufficiently while being simpler to implement. It is important to note, though, that this approach only takes into account two of the four states. 
 
 Initially I also made the mistake of continuously checking whether the current state was within the boundaries of the strip. This only needed checking once though, since it was possible for the angular speed to leave the strip during the process of the LQR. Outside the strip, control fell back to energy pumping, which is nearly silent near the top. I fixed this by handing control over to the LQR permanently once the state entered the strip a single time. Before the fix, 4 of 8 nearby configurations failed to balance at all.
