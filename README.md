@@ -1,4 +1,4 @@
-## Intro
+# Cart-Pole Swing-up
 
 ![Swing-up and balance](docs/swingup.gif)
 
