@@ -30,7 +30,7 @@ I derived the equations of motion by hand from the following free-body diagrams 
 
 Eliminating the pivot reactions $H$ and $V$ between the five scalar equations leaves two coupled equations of motion, which sort into a mass matrix acting on the two accelerations:
 
-$$
+```math
 \begin{bmatrix}
 M+m & -ml\cos\theta \\
 -ml\cos\theta & I_S+ml^2
@@ -44,7 +44,7 @@ M+m & -ml\cos\theta \\
 u - b\dot{p} - ml\dot{\theta}^2\sin\theta \\
 mgl\sin\theta
 \end{bmatrix}
-$$
+```
 
 $I_S + ml^2$ shows up on its own as the moment of inertia about the pivot (Steiner's theorem), and the mass matrix turns out symmetric, matching the quadratic form of the kinetic energy. This gives us two sanity checks, suggesting our math so far was correct. 
 Further details can be found in [the full derivation](Derivation_of_Cart_Pole_equations.pdf).
